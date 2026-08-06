@@ -9,6 +9,7 @@ import datetime as dt
 import json
 import os
 import statistics as st
+import sys
 from collections import defaultdict
 
 GA = os.path.expanduser("~/Documents/Treaning + Claude/garmin-ai")
@@ -126,7 +127,28 @@ def build(weeks=16):
         yby[s]["n"] += 1
     year = {k: {"h": round(v["h"]), "km": round(v["km"]), "n": v["n"]} for k, v in yby.items()}
 
+    # сегодняшний вердикт тем же движком, что и утренняя сводка
+    verdict = None
+    try:
+        sys.path.insert(0, GA)
+        import coach_signals
+        sg = coach_signals.compute()
+        if sg.get("verdict") in ("hard", "easy", "rest"):
+            bits = []
+            if sg["today"].get("hrv") and sg["baselines"].get("hrv_ratio"):
+                bits.append("HRV %s, это %d%% от базы" % (sg["today"]["hrv"], round(sg["baselines"]["hrv_ratio"] * 100)))
+            if sg["today"].get("readiness") is not None:
+                bits.append("готовность %s" % sg["today"]["readiness"])
+            if sg["today"].get("sleep_h") is not None:
+                bits.append("сон %s ч" % sg["today"]["sleep_h"])
+            if sg.get("load_triggers"):
+                bits.append("по нагрузке: " + ", ".join(sg["load_triggers"]))
+            verdict = {"verdict": sg["verdict"], "why": " · ".join(bits)}
+    except Exception as e:
+        print("вердикт недоступен: %s" % type(e).__name__, file=sys.stderr)
+
     return {
+        "verdict": verdict,
         "generated": dt.datetime.now().strftime("%d.%m.%Y %H:%M"),
         "days_to_race": (dt.date.fromisoformat(RACE) - today).days,
         "race": RACE,

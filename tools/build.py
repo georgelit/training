@@ -196,6 +196,12 @@ td{padding:9px 10px 9px 0;border-bottom:1px solid var(--rule);vertical-align:top
 tr:last-child td{border-bottom:0}
 td.n{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
 .muted{color:var(--faint);font-size:14px}
+.tblwrap{overflow-x:auto}
+.verdict{display:flex;gap:12px;align-items:flex-start;margin-top:18px;
+  padding:14px 16px;border-radius:4px;border:1px solid var(--rule);background:var(--card);
+  box-shadow:var(--shadow)}
+.verdict b{font-size:17px;white-space:nowrap}
+.verdict p{margin:2px 0 0;color:var(--soft);font-size:14.5px}
 footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--rule);
   font-family:var(--mono);font-size:11.5px;color:var(--faint);
   display:flex;flex-wrap:wrap;gap:6px 16px;justify-content:space-between}
@@ -245,7 +251,18 @@ def build():
     o.append(tile(t["rhr"] or "—", "Пульс покоя", (c, "%s к базе" % v) if v else ""))
     o.append(tile("%.1f" % t["sleep"] if t["sleep"] else "—", "Сон, ч"))
     o.append(tile(t["rd"] or "—", "Готовность"))
-    o.append('</div></header>')
+    o.append('</div>')
+
+    # сегодняшний светофор тем же движком, что и утренняя сводка в телеграме
+    v = d.get("verdict")
+    if v and v.get("verdict") in ("hard", "easy", "rest"):
+        vv = v["verdict"]
+        head = {"hard": "Можно жёстко", "easy": "Сегодня легко", "rest": "Сегодня отдых"}[vv]
+        dot = {"hard": "🟢", "easy": "🟡", "rest": "🔴"}[vv]
+        why = v.get("why") or ""
+        o.append('<div class="verdict"><span style="font-size:19px">%s</span>'
+                 '<div><b>%s</b><p>%s</p></div></div>' % (dot, head, esc(why)))
+    o.append('</header>')
 
     # объём
     wk = d["weeks"]
@@ -319,7 +336,7 @@ def build():
     # план
     if d["plan"]:
         o.append('<h2>Что дальше</h2>')
-        o.append('<div class="card"><table><thead><tr><th>Дата</th><th>Сессия</th><th>План</th></tr></thead><tbody>')
+        o.append('<div class="card tblwrap"><table><thead><tr><th>Дата</th><th>Сессия</th><th>План</th></tr></thead><tbody>')
         for p in d["plan"]:
             day = dt.date.fromisoformat(p["d"])
             wd = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"][day.weekday()]
