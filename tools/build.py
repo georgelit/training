@@ -213,7 +213,7 @@ td.n{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowra
 .chip.run{color:var(--rn);border-color:var(--rn)} .chip.test{color:var(--bad);border-color:var(--bad)}
 .fact{display:block;margin-top:5px;font:500 11.5px var(--mono);color:var(--ok)}
 .idea{margin:0 0 14px;color:var(--soft);font-size:15px;max-width:66ch}
-.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.two>div+div{margin-top:28px}
 .dates li{display:flex;gap:12px;align-items:baseline;padding:7px 0;border-bottom:1px solid var(--rule)}
 .dates li:last-child{border-bottom:0}
 .dates{list-style:none;margin:0;padding:0}
@@ -233,7 +233,6 @@ footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--rule);
   h2{margin:34px 0 4px}
   table{font-size:13.5px}
   td,th{padding-right:6px}
-  .two{grid-template-columns:1fr}
   .dates .n{min-width:0}
 }
 """
@@ -349,7 +348,7 @@ def build():
 
     zn, ms = pl.get("zones"), pl.get("milestones")
     if zn or ms:
-        o.append('<div class="two" style="margin-top:44px">')
+        o.append('<div class="two" style="margin-top:44px">')  # зоны и даты друг под другом
         if zn:
             o.append('<div><h2 style="margin-top:0">Рабочие зоны</h2><p class="note">%s</p>'
                      '<div class="card tblwrap"><table><tbody>' % esc(zn.get("note", "")))

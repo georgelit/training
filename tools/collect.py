@@ -103,7 +103,11 @@ def build(weeks=16):
     # ── база и сегодня ──
     hrv90 = [w.get("hrv_ms") for w in well[-30:] if w.get("hrv_ms")]
     rhr90 = [w.get("resting_hr") for w in well[-30:] if w.get("resting_hr")]
-    last = well[-1]
+    # за сегодня Garmin часть метрик дописывает позже: берём последнее известное значение за 2 дня
+    last = dict(well[-1])
+    for k in ("hrv_ms", "resting_hr", "sleep_hours", "training_readiness"):
+        if last.get(k) is None:
+            last[k] = next((w.get(k) for w in reversed(well[-3:-1]) if w.get(k) is not None), None)
 
     # ── план ──
     plan = []
