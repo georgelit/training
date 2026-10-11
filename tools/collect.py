@@ -111,6 +111,8 @@ def build(weeks=16):
     if os.path.exists(tp):
         t = json.load(open(tp))
         for e in t.get("events", []):
+            # без премиума TrainingPeaks отдаёт заглушку вместо тренировки, её не показываем
+            if "premium" in (e.get("summary") or "").lower(): continue
             if e.get("date", "") >= today.isoformat() and e.get("type") not in ("", None):
                 plan.append({"d": e["date"], "s": e.get("summary", ""),
                              "t": (e.get("metrics") or {}).get("Planned Time", "")})
@@ -147,8 +149,17 @@ def build(weeks=16):
     except Exception as e:
         print("вердикт недоступен: %s" % type(e).__name__, file=sys.stderr)
 
+    # факт по дням для таблицы плана недели
+    d0 = (today - dt.timedelta(days=21)).isoformat()
+    days = defaultdict(list)
+    for a in acts:
+        if a["date"] >= d0:
+            days[a["date"]].append({"sport": sport(a["type"]), "min": round(a.get("duration_min") or 0),
+                                    "km": round(a.get("distance_km") or 0, 1)})
+
     return {
         "verdict": verdict,
+        "days": dict(days),
         "generated": dt.datetime.now().strftime("%d.%m.%Y %H:%M"),
         "days_to_race": (dt.date.fromisoformat(RACE) - today).days,
         "race": RACE,

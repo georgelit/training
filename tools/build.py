@@ -202,6 +202,25 @@ td.n{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowra
   box-shadow:var(--shadow)}
 .verdict b{font-size:17px;white-space:nowrap}
 .verdict p{margin:2px 0 0;color:var(--soft);font-size:14.5px}
+.plan td.day{font-family:var(--mono);white-space:nowrap;width:1%}
+.plan td.what b{display:block;font-weight:600}
+.plan td.what p{margin:3px 0 0;color:var(--soft);font-size:13.5px;line-height:1.45}
+.plan tr.today td{background:var(--band)}
+.plan tr.past td.what b{color:var(--soft)}
+.chip{display:inline-block;font:500 10.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;
+  padding:2px 7px;border-radius:3px;border:1px solid var(--rule);color:var(--soft);white-space:nowrap}
+.chip.swim{color:var(--sw);border-color:var(--sw)} .chip.bike{color:var(--bk);border-color:var(--bk)}
+.chip.run{color:var(--rn);border-color:var(--rn)} .chip.test{color:var(--bad);border-color:var(--bad)}
+.fact{display:block;margin-top:5px;font:500 11.5px var(--mono);color:var(--ok)}
+.idea{margin:0 0 14px;color:var(--soft);font-size:15px;max-width:66ch}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.dates li{display:flex;gap:12px;align-items:baseline;padding:7px 0;border-bottom:1px solid var(--rule)}
+.dates li:last-child{border-bottom:0}
+.dates{list-style:none;margin:0;padding:0}
+.dates .n{font-family:var(--mono);font-size:13px;white-space:nowrap;min-width:9.5em}
+.dates em{font-style:normal;color:var(--faint);font-family:var(--mono);font-size:12px;margin-left:auto;white-space:nowrap}
+.focus{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.focus p{margin:6px 0 0;font-size:14.5px;color:var(--soft)}
 footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--rule);
   font-family:var(--mono);font-size:11.5px;color:var(--faint);
   display:flex;flex-wrap:wrap;gap:6px 16px;justify-content:space-between}
@@ -214,8 +233,38 @@ footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--rule);
   h2{margin:34px 0 4px}
   table{font-size:13.5px}
   td,th{padding-right:6px}
+  .two{grid-template-columns:1fr}
+  .dates .n{min-width:0}
 }
 """
+
+
+WD = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"]
+KIND = {"swim": "плав.", "bike": "вело", "run": "бег", "rest": "отдых", "test": "тест", "opt": "опц.", "other": "общее"}
+SPORT_RU = {"swim": "плавание", "bike": "вело", "run": "бег", "other": "другое"}
+
+
+def load_plan():
+    p = os.path.join(ROOT, "plan.json")
+    return json.load(open(p, encoding="utf-8")) if os.path.exists(p) else {}
+
+
+def chip(kind):
+    return '<span class="chip %s">%s</span>' % (kind, KIND.get(kind, kind))
+
+
+def ddmm(iso):
+    d = dt.date.fromisoformat(iso)
+    return "%s %d.%02d" % (WD[d.weekday()], d.day, d.month)
+
+
+def until(iso, today):
+    n = (dt.date.fromisoformat(iso) - today).days
+    if n == 0: return "сегодня"
+    if n == 1: return "завтра"
+    if n < 0: return "прошло"
+    return "через %d %s" % (n, "день" if n % 10 == 1 and n % 100 != 11 else
+                            "дня" if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14 else "дней")
 
 
 def tile(value, label, sub=""):
@@ -238,10 +287,15 @@ def build():
 
     o.append('<div class="wrap"><header>')
     o.append('<p class="eyebrow">Тренировки и восстановление · обновлено %s</p>' % d["generated"])
-    o.append('<h1>До Эркнера <em style="font-style:italic;color:var(--rn)">%d дней</em></h1>' % d["days_to_race"])
-    o.append('<p class="lede">IRONMAN 70.3 Erkner, %s. Страница собирается из данных Garmin '
-             'и плана в TrainingPeaks, обновляется автоматически.</p>'
-             % dt.date.fromisoformat(d["race"]).strftime("%d.%m.%Y"))
+    pl = load_plan()
+    today = dt.date.today()
+    nxt = [m for m in pl.get("milestones", []) if m[0] >= today.isoformat()]
+    if nxt:
+        o.append('<h1>%s<br><em style="font-style:italic;color:var(--rn);font-size:.62em">%s: %s</em></h1>'
+                 % (esc(pl.get("phase", "Тренировки")), esc(nxt[0][1]), until(nxt[0][0], today)))
+    else:
+        o.append('<h1>%s</h1>' % esc(pl.get("phase", "Тренировки")))
+    o.append('<p class="lede">%s</p>' % esc(pl.get("lede", "")))
 
     # плитки
     o.append('<div class="tiles">')
@@ -263,6 +317,63 @@ def build():
         o.append('<div class="verdict"><span style="font-size:19px">%s</span>'
                  '<div><b>%s</b><p>%s</p></div></div>' % (dot, head, esc(why)))
     o.append('</header>')
+
+    wkp = pl.get("week")
+    if wkp and wkp.get("days") and wkp["days"][-1]["d"] >= today.isoformat():
+        o.append('<h2>%s</h2>' % esc(wkp.get("title", "План недели")))
+        o.append('<p class="idea">%s</p>' % esc(wkp.get("idea", "")))
+        o.append('<div class="card tblwrap"><table class="plan"><tbody>')
+        for x in wkp["days"]:
+            cls = "today" if x["d"] == today.isoformat() else ("past" if x["d"] < today.isoformat() else "")
+            fact = d.get("days", {}).get(x["d"], [])
+            ft = ""
+            if fact:
+                ft = '<span class="fact">✓ факт: %s</span>' % ", ".join(
+                    "%s %d мин" % (SPORT_RU.get(a["sport"], a["sport"]), a["min"]) for a in fact)
+            o.append('<tr class="%s"><td class="day">%s<br><span class="muted">%s</span></td>'
+                     '<td>%s</td><td class="what"><b>%s</b><p>%s</p>%s</td></tr>'
+                     % (cls, ddmm(x["d"]), esc(x.get("time") or ""), chip(x["kind"]),
+                        esc(x["what"]), esc(x.get("note", "")), ft))
+        o.append('</tbody></table></div>')
+
+    tp = pl.get("template")
+    if tp:
+        o.append('<h2>%s</h2>' % esc(tp["title"]))
+        o.append('<p class="note">Постоянная неделя: клуб плюс свои Z2-сессии дома. '
+                 'Интенсивность только в клубе, остальное спокойно.</p>')
+        o.append('<div class="card tblwrap"><table class="plan"><tbody>')
+        for wd, kind, txt in tp["rows"]:
+            o.append('<tr><td class="day">%s</td><td>%s</td><td class="what">%s</td></tr>'
+                     % (wd, chip(kind), esc(txt)))
+        o.append('</tbody></table></div>')
+
+    zn, ms = pl.get("zones"), pl.get("milestones")
+    if zn or ms:
+        o.append('<div class="two" style="margin-top:44px">')
+        if zn:
+            o.append('<div><h2 style="margin-top:0">Рабочие зоны</h2><p class="note">%s</p>'
+                     '<div class="card tblwrap"><table><tbody>' % esc(zn.get("note", "")))
+            for kind, k, v in zn["rows"]:
+                o.append('<tr><td>%s %s</td><td class="n">%s</td></tr>' % (chip(kind), esc(k), esc(v)))
+            o.append('</tbody></table></div></div>')
+        if ms:
+            o.append('<div><h2 style="margin-top:0">Ближайшие даты</h2>'
+                     '<p class="note">Что впереди и сколько осталось.</p><div class="card"><ul class="dates">')
+            for iso, txt in ms:
+                if iso < today.isoformat():
+                    continue
+                o.append('<li><span class="n">%s</span><span>%s</span><em>%s</em></li>'
+                         % (dt.date.fromisoformat(iso).strftime("%d.%m.%Y"), esc(txt), until(iso, today)))
+            o.append('</ul></div></div>')
+        o.append('</div>')
+
+    if pl.get("focus"):
+        o.append('<h2>Фокус на зиму</h2>')
+        o.append('<p class="note">Выводы из разбора Эркнера: где лежат следующие минуты.</p>')
+        o.append('<div class="focus">')
+        for kind, k, v in pl["focus"]:
+            o.append('<div class="card">%s <b>%s</b><p>%s</p></div>' % (chip(kind), esc(k), esc(v)))
+        o.append('</div>')
 
     # объём
     wk = d["weeks"]
@@ -321,7 +432,7 @@ def build():
     sw = d["swims"]
     if len(sw) >= 4:
         o.append('<h2>Плавание: гребков на 50 метров</h2>')
-        o.append('<p class="note">Цель тренера на сезон. Чем ниже, тем длиннее гребок. '
+        o.append('<p class="note">Цель на сезон. Чем ниже, тем длиннее гребок. '
                  'Считается отдельно для 25 и 50 метров: в разных бассейнах цифры несопоставимы.</p>')
         for pool in (50, 25):
             g = [s for s in sw if s["pool"] == pool]
@@ -335,13 +446,23 @@ def build():
 
     # план
     if d["plan"]:
-        o.append('<h2>Что дальше</h2>')
+        o.append('<h2>План в TrainingPeaks</h2>')
         o.append('<div class="card tblwrap"><table><thead><tr><th>Дата</th><th>Сессия</th><th>План</th></tr></thead><tbody>')
         for p in d["plan"]:
             day = dt.date.fromisoformat(p["d"])
             wd = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"][day.weekday()]
             o.append('<tr><td class="n">%s %d.%02d</td><td>%s</td><td class="n">%s</td></tr>'
                      % (wd, day.day, day.month, esc(p["s"]), esc(p["t"] or "—")))
+        o.append('</tbody></table></div>')
+
+    if pl.get("races"):
+        o.append('<h2>Сезон 2026</h2>')
+        o.append('<div class="card tblwrap"><table><thead><tr><th>Дата</th><th>Гонка</th><th>Плав.</th>'
+                 '<th>Вело</th><th>Бег</th><th>Итог</th></tr></thead><tbody>')
+        for iso, name, sw_, bk, rn, tot in pl["races"]:
+            o.append('<tr><td class="n">%s</td><td>%s</td><td class="n">%s</td><td class="n">%s</td>'
+                     '<td class="n">%s</td><td class="n"><b>%s</b></td></tr>'
+                     % (dt.date.fromisoformat(iso).strftime("%d.%m.%y"), esc(name), sw_, bk, rn, tot))
         o.append('</tbody></table></div>')
 
     # год
@@ -354,7 +475,7 @@ def build():
     o.append(tile("%d ч" % sum(v["h"] for v in y.values()), "Всего"))
     o.append('</div>')
 
-    o.append('<footer><span>Данные Garmin Connect и TrainingPeaks</span>'
+    o.append('<footer><span>Данные Garmin Connect, план ведём сами</span>'
              '<span>обновлено %s</span></footer></div>' % d["generated"])
     return "".join(o)
 
